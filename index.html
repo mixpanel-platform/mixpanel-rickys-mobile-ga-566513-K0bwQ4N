@@ -1,15 +1,93 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <meta charset="utf-8">
     <link rel="stylesheet" type="text/css" href="https://cdn.mxpnl.com/libs/mixpanel-platform/css/reset.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/chosen/1.1.0/chosen.min.css">
     <script src="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chosen/1.1.0/chosen.jquery.min.js"></script>
   </head>
   <body class="mixpanel-platform-body">
-    <h1>Hello, World!</h1>
+    <div class="mixpanel-platform-section">
+      <div id="eventSelect" style="float: left;"></div>
+      <div id="by" class="mixpanel-platform-label" style="margin-left: 10px; display: none;">by</div>
+      <div id="propSelect" style="float: left;"></div>
+      <div id="dateSelect" style="float: right;"></div>
+      <div style="clear: both;"></div>
+      <div id="valueSelect" style="float: bottom;">
+        <select data-placeholder="choose a value" style="width:100%" multiple id="valueSelector" class="chosen-select"></select>
+      </div>
+      <button type="button" id="plotQuery">Plot Query</button>
+      <div id="graph"></div>
+    </div>
+    <div id="table"></div>
     <script>
-      // Run queries and display results here
+      MP.api.ready(function() {
+        var eventSelect = $('#eventSelect').MPEventSelect();
+        var propSelect  = $('#propSelect').MPPropertySelect();
+        var valueSelect = $('#valueSelector').chosen();
+        var dateSelect  = $('#dateSelect').MPDatepicker();
+        var eventGraph  = $('#graph').MPChart({chartType: 'pie'});
+        var eventTable  = $('#table').MPTable({
+          showPercentages: true,
+          firstColHeader: 'Event'
+        });
+
+        var runQuery = function() {
+          var eventName = eventSelect.MPEventSelect('value'),
+              propName  = propSelect.MPPropertySelect('value'),
+              dateRange = dateSelect.MPDatepicker('value');
+
+          if (eventName) {
+            var $segQuery = MP.api.segment(eventName, propName, dateRange)
+          }
+          
+          $.when($segQuery).done(function(results) {
+            $('.chosen-select').empty();
+
+            $.each(results.json, function(key, value) {
+              $('.chosen-select').append("<option value='"+key+"'>"+key+"</option>");
+              $('.chosen-select').trigger("chosen:updated");
+            });
+            
+            $("#plotQuery").click(function() {
+          
+              var plotVals = $('.chosen-select').chosen().val()
+              var $finalQuery = MP.api.segment(eventName, propName, dateRange)
+              var otherSlice = 0
+            
+              $.when($finalQuery).done(function(results) {
+                var finalResults = results.json
+                delete finalResults["undefined"];
+                $.each(finalResults, function(key, value) {
+
+                  if ($.inArray(key, plotVals) == -1) {
+                    $.each(finalResults[key], function(key, value) {
+                      otherSlice += value;
+                    });
+                    delete finalResults[key];
+                  };
+                  console.log(otherSlice)
+                });
+                
+                finalResults["other"] = otherSlice;
+                eventGraph.MPChart('setData', results);
+              
+              });
+            });
+          });
+        };       
+        
+        eventSelect.on('change', function(e, eventName) {
+          propSelect.MPPropertySelect('setEvent', eventName);
+          $("#by").show();
+          runQuery();
+        });
+        
+        propSelect.on('change', runQuery);
+        dateSelect.on('change', runQuery);
+        
+    });
     </script>
   </body>
 </html>
